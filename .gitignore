@@ -21,3 +21,5 @@ debug_*.png
 .idea/
 *.lnk
 desktop.ini
+dist/
+*.exe
