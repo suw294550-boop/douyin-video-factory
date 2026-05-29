@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Douyin Video Factory</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;height:100vh;overflow:hidden}
+/* Sidebar */
+.sidebar{width:200px;background:#1a1a2e;padding:20px 0;display:flex;flex-direction:column;border-right:1px solid #2a2a4a}
+.sidebar h2{color:#7c5cfc;padding:0 20px 20px;font-size:16px;border-bottom:1px solid #2a2a4a;margin-bottom:10px}
+.sidebar a{color:#999;text-decoration:none;padding:12px 20px;display:block;font-size:14px;transition:.2s;border-left:3px solid transparent}
+.sidebar a:hover,.sidebar a.active{color:#fff;background:#252540;border-left-color:#7c5cfc}
+/* Main */
+.main{flex:1;overflow-y:auto;padding:30px}
+.page{display:none}
+.page.active{display:block}
+h1{font-size:22px;margin-bottom:20px;color:#fff}
+h2{font-size:16px;margin-bottom:12px;color:#aaa}
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+.card{background:#1a1a2e;border-radius:10px;padding:20px;border:1px solid #2a2a4a}
+.card .label{font-size:12px;color:#888;margin-bottom:6px}
+.card .value{font-size:24px;font-weight:bold;color:#7c5cfc}
+.card .value.green{color:#4ade80}
+/* Buttons */
+.btn{display:inline-block;padding:10px 24px;border-radius:8px;border:none;cursor:pointer;font-size:14px;transition:.2s;font-family:inherit}
+.btn-primary{background:#7c5cfc;color:#fff}
+.btn-primary:hover{background:#6a4be0}
+.btn-danger{background:#e53e3e;color:#fff}
+.btn-danger:hover{background:#c53030}
+.btn-outline{background:transparent;border:1px solid #444;color:#ccc}
+.btn-outline:hover{border-color:#7c5cfc;color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* Form */
+label{display:block;font-size:13px;color:#aaa;margin:12px 0 4px}
+select,input[type=number],input[type=text]{width:100%;padding:8px 12px;border-radius:6px;border:1px solid #333;background:#0f0f1a;color:#e0e0e0;font-size:14px;font-family:inherit}
+select:focus,input:focus{outline:none;border-color:#7c5cfc}
+.check-group{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0}
+.check-item{display:flex;align-items:center;gap:6px;font-size:14px}
+.check-item input[type=checkbox]{accent-color:#7c5cfc}
+/* Log */
+.log-box{background:#0a0a14;border-radius:8px;padding:12px;margin-top:12px;height:200px;overflow-y:auto;font-size:13px;font-family:Consolas,monospace;color:#aaa;border:1px solid #222}
+.log-box .line{margin-bottom:2px}
+/* Progress */
+.progress-bar{height:6px;background:#2a2a4a;border-radius:3px;margin:12px 0;overflow:hidden}
+.progress-bar .fill{height:100%;background:#7c5cfc;transition:width .3s;border-radius:3px}
+/* Batch list */
+.batch-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1a1a2e;border-radius:8px;margin-bottom:8px;border:1px solid #2a2a4a}
+.batch-item .info{flex:1}
+.batch-item .name{font-weight:bold;color:#fff}
+.batch-item .meta{font-size:12px;color:#888}
+/* Toast */
+.toast{position:fixed;top:20px;right:20px;background:#333;color:#fff;padding:12px 20px;border-radius:8px;z-index:999;display:none}
+.toast.show{display:block}
+.toast.success{background:#22543d}
+.toast.error{background:#742a2a}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>视频工厂</h2>
+  <a href="#" data-page="dashboard" class="active">仪表盘</a>
+  <a href="#" data-page="produce">生产视频</a>
+  <a href="#" data-page="publish">发布视频</a>
+  <a href="#" data-page="settings">设置</a>
+</div>
+
+<div class="main">
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="page active">
+    <h1>仪表盘</h1>
+    <div class="cards">
+      <div class="card"><div class="label">当前模型</div><div class="value" id="dash-model">-</div></div>
+      <div class="card"><div class="label">登录状态</div><div class="value" id="dash-login">-</div></div>
+      <div class="card"><div class="label">待发布批次</div><div class="value green" id="dash-batches">0</div></div>
+    </div>
+    <h2>快速操作</h2>
+    <button class="btn btn-primary" onclick="quickProduce()">快速生产 (全部赛道 x3)</button>
+    <button class="btn btn-outline" onclick="navTo('publish')" style="margin-left:8px">去发布</button>
+  </div>
+
+  <!-- Produce -->
+  <div id="produce" class="page">
+    <h1>生产视频</h1>
+    <label>选择赛道</label>
+    <div class="check-group">
+      <label class="check-item"><input type="checkbox" data-topic="emotional" checked> 情感语录</label>
+      <label class="check-item"><input type="checkbox" data-topic="cold_knowledge" checked> 冷知识</label>
+      <label class="check-item"><input type="checkbox" data-topic="motivation" checked> 励志语录</label>
+      <label class="check-item"><input type="checkbox" data-topic="book_review"> 书摘推荐</label>
+    </div>
+    <label>每条赛道数量</label>
+    <input type="number" id="produce-count" value="3" min="1" max="20" style="width:100px">
+    <br><br>
+    <button class="btn btn-primary" id="btn-produce" onclick="startProduce()">开始生产</button>
+    <div class="progress-bar"><div class="fill" id="produce-progress" style="width:0%"></div></div>
+    <div class="log-box" id="produce-log"></div>
+  </div>
+
+  <!-- Publish -->
+  <div id="publish" class="page">
+    <h1>发布视频</h1>
+    <button class="btn btn-outline" onclick="loadBatches()" style="margin-bottom:16px">刷新列表</button>
+    <div id="batch-list"></div>
+    <div class="log-box" id="publish-log" style="height:120px"></div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings" class="page">
+    <h1>设置</h1>
+    <label>Ollama 模型</label>
+    <select id="model-select" onchange="switchModel(this.value)">
+      <option value="">加载中...</option>
+    </select>
+    <p style="font-size:12px;color:#888;margin-top:4px">切换后下次生产生效</p>
+
+    <label>抖音账号</label>
+    <button class="btn btn-primary" id="btn-login" onclick="startLogin()">扫码登录</button>
+    <p style="font-size:12px;color:#888;margin-top:4px" id="login-status">未登录</p>
+
+    <h2 style="margin-top:24px">DeepSeek API (可选)</h2>
+    <label>API Key</label>
+    <input type="text" id="deepseek-key" placeholder="sk-..." value="">
+    <p style="font-size:12px;color:#888;margin-top:4px">设置后自动切换至 DeepSeek（付费）</p>
+  </div>
+
+</div>
+
+<script>
+// ── Navigation ──
+document.querySelectorAll('.sidebar a').forEach(a=>{
+  a.onclick=e=>{e.preventDefault();navTo(a.dataset.page)}
+});
+function navTo(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a=>a.classList.remove('active'));
+  document.getElementById(page).classList.add('active');
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  if(page==='publish') loadBatches();
+  if(page==='settings') loadModels();
+}
+
+// ── API helpers ──
+async function api(url,opts={}){
+  const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
+  return r.json();
+}
+
+// ── Dashboard ──
+async function loadDashboard(){
+  const s=await api('/api/status');
+  document.getElementById('dash-model').textContent=s.model||'-';
+  document.getElementById('dash-login').textContent=s.logged_in?'已登录':'未登录';
+  const b=await api('/api/batches');
+  document.getElementById('dash-batches').textContent=(b.batches||[]).length;
+}
+async function quickProduce(){
+  await api('/api/produce',{method:'POST',body:JSON.stringify({
+    topics:[
+      {topic:'emotional',count:3},
+      {topic:'cold_knowledge',count:3},
+      {topic:'motivation',count:3},
+    ]
+  })});
+  navTo('produce');
+  pollJob('produce');
+}
+
+// ── Produce ──
+let produceJobId=null;
+async function startProduce(){
+  const topics=[];
+  document.querySelectorAll('[data-topic]:checked').forEach(cb=>topics.push({
+    topic:cb.dataset.topic,count:parseInt(document.getElementById('produce-count').value)||3
+  }));
+  if(!topics.length){alert('请选择至少一个赛道');return}
+  document.getElementById('btn-produce').disabled=true;
+  const r=await api('/api/produce',{method:'POST',body:JSON.stringify({topics})});
+  if(r.ok){produceJobId=r.job_id;pollJob('produce')}
+}
+async function pollJob(type){
+  const endpoint=type==='produce'?'/api/produce/status/':'/api/publish/status/';
+  const jobId=type==='produce'?produceJobId:publishJobId;
+  if(!jobId)return;
+  const r=await api(endpoint+jobId);
+  const log=document.getElementById(type+'-log');
+  const prog=document.getElementById(type+'-progress');
+  if(r.log)log.innerHTML+=`<div class="line">[${new Date().toLocaleTimeString()}] ${r.log}</div>`;
+  if(prog)prog.style.width=(r.progress||0)+'%';
+  log.scrollTop=log.scrollHeight;
+  if(r.status==='running')setTimeout(()=>pollJob(type),2000);
+  else{
+    document.getElementById('btn-'+type).disabled=false;
+    if(r.status==='done'&&type==='produce')loadBatches();
+  }
+}
+
+// ── Publish ──
+let publishJobId=null;
+async function loadBatches(){
+  const r=await api('/api/batches');
+  const div=document.getElementById('batch-list');
+  div.innerHTML=(r.batches||[]).map((b,i)=>`
+    <div class="batch-item">
+      <div class="info">
+        <div class="name">${b.topic} (${b.count}条)</div>
+        <div class="meta">${b.dir} | ${b.generated_at}</div>
+      </div>
+      <button class="btn btn-primary" onclick="publishBatch('${b.dir}')" id="btn-publish">发布</button>
+    </div>`).join('')||'<p style="color:#666">暂无批次</p>';
+}
+async function publishBatch(dir){
+  document.getElementById('btn-publish').disabled=true;
+  const r=await api('/api/publish',{method:'POST',body:JSON.stringify({dir})});
+  if(r.ok){publishJobId=r.job_id;pollJob('publish')}
+}
+
+// ── Settings ──
+async function loadModels(){
+  const r=await api('/api/models');
+  const sel=document.getElementById('model-select');
+  sel.innerHTML=(r.models||[]).map(m=>`<option value="${m}" ${m===r.current?'selected':''}>${m}</option>`).join('');
+}
+async function switchModel(model){
+  await api('/api/models/switch',{method:'POST',body:JSON.stringify({model})});
+}
+async function startLogin(){
+  document.getElementById('btn-login').disabled=true;
+  document.getElementById('login-status').textContent='等待扫码...';
+  const r=await api('/api/login',{method:'POST'});
+  if(r.ok){
+    let status='running';
+    while(status==='running'){
+      await new Promise(r=>setTimeout(r,2000));
+      const s=await api('/api/login/status/'+r.job_id);
+      status=s.status;
+    }
+    document.getElementById('btn-login').disabled=false;
+    document.getElementById('login-status').textContent=status==='done'?'已登录':'登录失败';
+  }
+}
+
+// ── Init ──
+loadDashboard();
+setInterval(loadDashboard,30000);
+</script>
+</body>
+</html>

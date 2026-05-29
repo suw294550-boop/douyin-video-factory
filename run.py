@@ -123,6 +123,12 @@ def cmd_report(_args):
     report()
 
 
+def cmd_ui(_args):
+    """启动 Web 控制面板"""
+    from src.web import run_ui
+    run_ui()
+
+
 def main():
     import argparse
 
@@ -143,6 +149,7 @@ def main():
     sub.add_parser("login", help="扫码登录抖音")
     sub.add_parser("all", help="生产+发布全流程")
     sub.add_parser("report", help="查看发布统计")
+    sub.add_parser("ui", help="启动 Web 控制面板")
 
     args = parser.parse_args()
 
@@ -156,6 +163,8 @@ def main():
         cmd_all(args)
     elif args.command == "report":
         cmd_report(args)
+    elif args.command == "ui":
+        cmd_ui(args)
     else:
         parser.print_help()
 
