@@ -1,112 +1,98 @@
 """
-打包脚本 - 创建可分发版本
-生成 dist/DouyinFactory/ 目录，可直接分发
+PyInstaller 打包为独立 .exe
+输出: dist/DouyinFactory.exe (单文件)
 """
 import os
 import sys
+import subprocess
 import shutil
-import zipfile
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DIST = os.path.join(BASE, "dist", "DouyinFactory")
-
-# 需要分发的文件
-INCLUDE_FILES = [
-    "run.py",
-    "requirements.txt",
-    "README.md",
-    "LICENSE",
-    ".env.example",
-    ".gitignore",
-    "install.bat",
-]
-
-INCLUDE_DIRS = [
-    "src",
-    "scripts",
-    "batch",
-    "tests",
-]
-
-EXCLUDE_PATTERNS = [
-    "__pycache__", "*.pyc", "*.pyo",
-    "output", "browser_profile", "scripts_cache",
-    "music", "backgrounds",
-    "*.mp3", "*.mp4", "*.wav", "*.png",
-    ".env", "douyin_cookies.json",
-    "publish_log.json", "daily_log.txt",
-    "*.log", ".git",
-]
-
-
-def should_exclude(path):
-    for pat in EXCLUDE_PATTERNS:
-        if pat.startswith("*"):
-            if path.endswith(pat[1:]):
-                return True
-        elif pat in path:
-            return True
-    return False
-
-
-def copytree(src, dst):
-    for root, dirs, files in os.walk(src):
-        # 过滤目录
-        dirs[:] = [d for d in dirs if not should_exclude(d)]
-        rel = os.path.relpath(root, src)
-        target = os.path.join(dst, rel) if rel != "." else dst
-        os.makedirs(target, exist_ok=True)
-        for f in files:
-            if should_exclude(f):
-                continue
-            src_path = os.path.join(root, f)
-            dst_path = os.path.join(target, f)
-            shutil.copy2(src_path, dst_path)
-
+TEMPLATE_DIR = os.path.join(BASE, "src", "templates")
 
 def build():
-    print("=" * 50)
-    print("  Building DouyinFactory package...")
-    print("=" * 50)
+    # 先写 spec 文件
+    spec = f"""# -*- mode: python ; coding: utf-8 -*-
+import sys, os
+from PyInstaller.utils.hooks import collect_data_files
 
-    # 清理
-    if os.path.exists(DIST):
-        shutil.rmtree(DIST)
-    os.makedirs(DIST, exist_ok=True)
+datas = [('{TEMPLATE_DIR.replace(chr(92),'/')}', 'src/templates')]
 
-    # 创建必要空目录
-    for d in ["output", "backgrounds", "music", "scripts_cache", "browser_profile"]:
-        os.makedirs(os.path.join(DIST, d), exist_ok=True)
+a = Analysis(
+    ['run.py'],
+    pathex=['{BASE.replace(chr(92),'/')}'],
+    binaries=[],
+    datas=datas,
+    hiddenimports=[
+        'flask','flask.cli','flask.json','flask.blueprints',
+        'edge_tts','edge_tts.communicate','edge_tts.util',
+        'playwright','playwright.async_api','playwright.sync_api',
+        'requests','urllib3','certifi',
+        'dotenv','asyncio','threading','json','glob','subprocess',
+        'src','src.config','src.llm','src.scripts_gen',
+        'src.pipeline','src.audio','src.background','src.music',
+        'src.uploader','src.tracker','src.api','src.web',
+    ],
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=['tkinter','matplotlib','numpy','pandas','scipy','PIL','cv2'],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
 
-    # 复制文件
-    for f in INCLUDE_FILES:
-        src = os.path.join(BASE, f)
-        if os.path.exists(src):
-            shutil.copy2(src, os.path.join(DIST, f))
-            print(f"  {f}")
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='DouyinFactory',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+"""
 
-    # 复制目录
-    for d in INCLUDE_DIRS:
-        src = os.path.join(BASE, d)
-        if os.path.exists(src):
-            copytree(src, os.path.join(DIST, d))
-            print(f"  {d}/")
+    spec_path = os.path.join(BASE, "DouyinFactory.spec")
+    with open(spec_path, "w", encoding="utf-8") as f:
+        f.write(spec)
 
-    print(f"\n  Package: {DIST}")
-    print(f"  To install: run install.bat")
-    print("=" * 50)
+    print("Building DouyinFactory.exe ...")
+    print("This may take 3-5 minutes...")
+    print()
 
-    # 创建 zip
-    zip_path = os.path.join(BASE, "dist", "DouyinFactory.zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(DIST):
-            for f in files:
-                full = os.path.join(root, f)
-                rel = os.path.relpath(full, DIST)
-                zf.write(full, os.path.join("DouyinFactory", rel))
-    size_mb = os.path.getsize(zip_path) / 1024 / 1024
-    print(f"  Zip: {zip_path} ({size_mb:.1f}MB)")
-    return DIST
+    result = subprocess.run([
+        sys.executable, "-m", "PyInstaller",
+        "--clean", "--noconfirm",
+        spec_path,
+    ], cwd=BASE, timeout=600)
+
+    if result.returncode != 0:
+        print("\nBuild FAILED!")
+        return None
+
+    # 检查输出
+    exe_path = os.path.join(BASE, "dist", "DouyinFactory.exe")
+    if os.path.exists(exe_path):
+        size_mb = os.path.getsize(exe_path) / 1_048_576
+        print(f"\n  Build OK: DouyinFactory.exe ({size_mb:.1f}MB)")
+        print(f"  Location: {exe_path}")
+        return exe_path
+    else:
+        print("\n  Build FAILED: exe not found")
+        return None
 
 
 if __name__ == "__main__":

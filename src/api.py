@@ -178,26 +178,26 @@ def start_publish():
     _update_job(job_id, status="running", progress=0, log="", batch=batch_dir_name)
 
     def _run():
-        import subprocess as sp
-        py = sys.executable or "python"
-        script = str(PROJECT_ROOT / "run.py")
-        _update_job(job_id, log=f"开始发布 {batch_dir_name} ...")
+        import multiprocessing
+        def _publish():
+            from src.uploader import publish_batch
+            import asyncio
+            meta_path = os.path.join(batch_dir, "metadata.json")
+            topic_name = "短视频"
+            if os.path.exists(meta_path):
+                with open(meta_path, encoding="utf-8") as f:
+                    topic_name = json.load(f).get("topic_name", "短视频")
+            n = asyncio.run(publish_batch(batch_dir, topic_name))
+            return n
         try:
-            result = sp.run(
-                [py, script, "publish", "--dir", batch_dir],
-                cwd=str(PROJECT_ROOT),
-                timeout=600,
-                capture_output=True,
-                text=True,
-                encoding="utf-8", errors="replace",
-            )
-            combined = result.stdout + result.stderr
-            if "OK" in combined or "成功" in combined:
-                # 统计成功数量
-                ok_count = combined.count("OK 发布成功") or combined.count("PUBLISHED") or 1
-                _update_job(job_id, status="done", progress=100, log=f"发布完成", total=ok_count)
+            # 用独立进程避免 Playwright 线程冲突
+            proc = multiprocessing.Process(target=_publish)
+            proc.start()
+            proc.join(timeout=600)
+            if proc.exitcode == 0:
+                _update_job(job_id, status="done", progress=100, log="发布完成")
             else:
-                _update_job(job_id, log=f"发布异常: {combined[:300]}", status="error")
+                _update_job(job_id, log=f"发布异常 (exit {proc.exitcode})", status="error")
         except Exception as e:
             _update_job(job_id, log=f"发布失败: {e}", status="error")
 
@@ -256,20 +256,22 @@ def start_login():
     _update_job(job_id, status="running", log="请在浏览器弹出的窗口中扫码...")
 
     def _run():
-        import subprocess as sp
-        py = sys.executable or "python"
-        script = str(PROJECT_ROOT / "scripts" / "login.py")
-        _update_job(job_id, log="正在启动浏览器...")
+        import multiprocessing
+        def _login():
+            from src.uploader import login_only
+            login_only()
+            return True
         try:
-            # 不用 capture_output，让 Playwright 浏览器窗口正常弹出
-            proc = sp.Popen([py, script], cwd=str(PROJECT_ROOT))
-            proc.wait(timeout=180)
-            if proc.returncode == 0:
+            _update_job(job_id, log="正在启动浏览器扫码窗口...")
+            proc = multiprocessing.Process(target=_login)
+            proc.start()
+            proc.join(timeout=180)
+            if proc.exitcode == 0:
                 _update_job(job_id, status="done", log="登录完成")
             else:
-                _update_job(job_id, log=f"登录失败 (exit {proc.returncode})", status="error")
+                _update_job(job_id, log=f"登录失败 (exit {proc.exitcode})", status="error")
         except Exception as e:
-            _update_job(job_id, log=f"登录超时或失败: {e}", status="error")
+            _update_job(job_id, log=f"登录失败: {e}", status="error")
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()

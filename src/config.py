@@ -10,14 +10,11 @@ load_dotenv()
 # 项目根目录 = 本文件向上两级
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# === LLM 配置 ===
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+# === LLM 配置 (纯本地 Ollama，零费用) ===
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 # === 路径 ===
 OUTPUT_DIR = PROJECT_ROOT / "output"
