@@ -206,6 +206,39 @@ def publish_status(job_id):
     return jsonify(job)
 
 
+# ── 定时调度 ──
+
+SCHEDULE_FILE = PROJECT_ROOT / "schedule.json"
+
+
+def _load_schedule():
+    if os.path.exists(str(SCHEDULE_FILE)):
+        with open(str(SCHEDULE_FILE), encoding="utf-8") as f:
+            return json.load(f)
+    return {"enabled": False, "time": "09:50", "auto_publish": True, "topics": [
+        {"topic": "emotional", "count": 3},
+        {"topic": "cold_knowledge", "count": 3},
+        {"topic": "motivation", "count": 3},
+    ]}
+
+
+def _save_schedule(data):
+    with open(str(SCHEDULE_FILE), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@api.route("/api/schedule")
+def get_schedule():
+    return jsonify(_load_schedule())
+
+
+@api.route("/api/schedule", methods=["POST"])
+def set_schedule():
+    data = request.get_json()
+    _save_schedule(data)
+    return jsonify({"ok": True})
+
+
 # ── 登录 ──
 
 @api.route("/api/login", methods=["POST"])

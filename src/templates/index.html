@@ -122,6 +122,17 @@ select:focus,input:focus{outline:none;border-color:#7c5cfc}
     <button class="btn btn-primary" id="btn-login" onclick="startLogin()">扫码登录</button>
     <p style="font-size:12px;color:#888;margin-top:4px" id="login-status">未登录</p>
 
+    <h2 style="margin-top:24px">定时调度</h2>
+    <label class="check-item" style="margin:8px 0">
+      <input type="checkbox" id="sched-enabled" onchange="toggleSchedule()"> 启用每日自动生产
+    </label>
+    <label>每天时间</label>
+    <input type="time" id="sched-time" value="09:50" onchange="saveSchedule()" style="width:140px">
+    <label class="check-item" style="margin:8px 0">
+      <input type="checkbox" id="sched-publish" onchange="saveSchedule()" checked> 生产后自动发布
+    </label>
+    <p style="font-size:12px;color:#888;margin-top:4px">到达设定时间后自动生产视频并发布</p>
+
     <h2 style="margin-top:24px">DeepSeek API (可选)</h2>
     <label>API Key</label>
     <input type="text" id="deepseek-key" placeholder="sk-..." value="">
@@ -244,8 +255,31 @@ async function startLogin(){
   }
 }
 
+// ── Schedule ──
+async function loadSchedule(){
+  const r=await api('/api/schedule');
+  document.getElementById('sched-enabled').checked=r.enabled;
+  document.getElementById('sched-time').value=r.time||'09:50';
+  document.getElementById('sched-publish').checked=r.auto_publish!==false;
+}
+async function saveSchedule(){
+  const data={
+    enabled:document.getElementById('sched-enabled').checked,
+    time:document.getElementById('sched-time').value,
+    auto_publish:document.getElementById('sched-publish').checked,
+    topics:[
+      {topic:'emotional',count:3},
+      {topic:'cold_knowledge',count:3},
+      {topic:'motivation',count:3},
+    ]
+  };
+  await api('/api/schedule',{method:'POST',body:JSON.stringify(data)});
+}
+function toggleSchedule(){saveSchedule();}
+
 // ── Init ──
 loadDashboard();
+loadSchedule();
 setInterval(loadDashboard,30000);
 </script>
 </body>
