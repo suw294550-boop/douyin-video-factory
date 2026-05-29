@@ -2,6 +2,7 @@
 REST API - Flask 路由，封装 pipeline/uploader/config 模块
 """
 import os
+import sys
 import re
 import json
 import glob
@@ -177,20 +178,28 @@ def start_publish():
     _update_job(job_id, status="running", progress=0, log="", batch=batch_dir_name)
 
     def _run():
-        from src.uploader import publish_batch
-        import asyncio
-        meta_path = os.path.join(batch_dir, "metadata.json")
-        topic_name = "短视频"
-        if os.path.exists(meta_path):
-            with open(meta_path, encoding="utf-8") as f:
-                meta = json.load(f)
-                topic_name = meta.get("topic_name", "短视频")
-        _update_job(job_id, log=f"开始发布 {topic_name} ...")
+        import subprocess as sp
+        py = sys.executable or "python"
+        script = str(PROJECT_ROOT / "run.py")
+        _update_job(job_id, log=f"开始发布 {batch_dir_name} ...")
         try:
-            n = asyncio.run(publish_batch(batch_dir, topic_name))
-            _update_job(job_id, status="done", progress=100, log=f"发布完成 {n} 条", total=n)
+            result = sp.run(
+                [py, script, "publish", "--dir", batch_dir],
+                cwd=str(PROJECT_ROOT),
+                timeout=600,
+                capture_output=True,
+                text=True,
+                encoding="utf-8", errors="replace",
+            )
+            combined = result.stdout + result.stderr
+            if "OK" in combined or "成功" in combined:
+                # 统计成功数量
+                ok_count = combined.count("OK 发布成功") or combined.count("PUBLISHED") or 1
+                _update_job(job_id, status="done", progress=100, log=f"发布完成", total=ok_count)
+            else:
+                _update_job(job_id, log=f"发布异常: {combined[:300]}", status="error")
         except Exception as e:
-            _update_job(job_id, log=f"错误: {e}", status="error")
+            _update_job(job_id, log=f"发布失败: {e}", status="error")
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
@@ -247,12 +256,20 @@ def start_login():
     _update_job(job_id, status="running", log="请在浏览器弹出的窗口中扫码...")
 
     def _run():
-        from src.uploader import login_only
+        import subprocess as sp
+        py = sys.executable or "python"
+        script = str(PROJECT_ROOT / "scripts" / "login.py")
+        _update_job(job_id, log="正在启动浏览器...")
         try:
-            login_only()
-            _update_job(job_id, status="done", log="登录完成")
+            # 不用 capture_output，让 Playwright 浏览器窗口正常弹出
+            proc = sp.Popen([py, script], cwd=str(PROJECT_ROOT))
+            proc.wait(timeout=180)
+            if proc.returncode == 0:
+                _update_job(job_id, status="done", log="登录完成")
+            else:
+                _update_job(job_id, log=f"登录失败 (exit {proc.returncode})", status="error")
         except Exception as e:
-            _update_job(job_id, log=f"登录失败: {e}", status="error")
+            _update_job(job_id, log=f"登录超时或失败: {e}", status="error")
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
